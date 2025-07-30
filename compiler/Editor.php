@@ -1,99 +1,477 @@
-<?php
-include '../includes/Navbar.php';
-
-
-session_start();
-if (!isset($_SESSION['user'])) {
-    header("Location: ../auth/login.php");
-    exit;
-}
-?>
 
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Online Code Compiler</title>
-  <?php include '../includes/header.php'; ?>
+  <title>CodeRunner - Online Compiler</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.js"></script>
-  <!-- SweetAlert2 for notifications -->
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    :root {
+      --bg-primary: #1a1a1a;
+      --bg-secondary: #262626;
+      --bg-tertiary: #2d2d2d;
+      --bg-hover: #3d3d3d;
+      --border-color: #404040;
+      --text-primary: #ffffff;
+      --text-secondary: #a6a6a6;
+      --text-muted: #737373;
+      --accent-green: #00b894;
+      --accent-blue: #0984e3;
+      --accent-orange: #e17055;
+      --accent-red: #d63031;
+      --accent-yellow: #fdcb6e;
+      --shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+    }
+
     body {
-      background: #181a1b;
-      color: #f1f1f1;
-      transition: background 0.3s, color 0.3s;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      height: 100vh;
+      overflow: hidden;
     }
-    .card, .alert, .form-control, .form-select {
-      border-radius: 10px !important;
+
+    /* Header */
+    .header {
+      background: var(--bg-secondary);
+      border-bottom: 1px solid var(--border-color);
+      padding: 0.75rem 1.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 60px;
+      position: relative;
+      z-index: 100;
     }
-    #editor { height: 400px; border-radius: 8px; }
-    .monaco-editor, .monaco-editor-background { border-radius: 8px; }
-    #output-area { margin-top: 20px; }
-    #output-card pre {
-      background: #23272b;
-      color: #f1f1f1;
-      padding: 15px;
-      border-radius: 8px;
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .logo {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: var(--accent-green);
+      text-decoration: none;
+    }
+
+    .user-info {
+      color: var(--text-secondary);
+      font-size: 0.9rem;
+    }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .theme-btn {
+      background: transparent;
+      border: 1px solid var(--border-color);
+      color: var(--text-secondary);
+      border-radius: 6px;
+      padding: 0.5rem 0.75rem;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .theme-btn:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+    }
+
+    /* Main Layout */
+    .main-container {
+      display: flex;
+      height: calc(100vh - 60px);
+    }
+
+    .left-panel {
+      width: 50%;
+      background: var(--bg-primary);
+      border-right: 1px solid var(--border-color);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .right-panel {
+      width: 50%;
+      background: var(--bg-secondary);
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Control Bar */
+    .control-bar {
+      background: var(--bg-secondary);
+      border-bottom: 1px solid var(--border-color);
+      padding: 0.75rem 1rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      min-height: 50px;
+    }
+
+    .language-select {
+      background: var(--bg-primary);
+      border: 1px solid var(--border-color);
+      color: var(--text-primary);
+      border-radius: 6px;
+      padding: 0.5rem 0.75rem;
+      font-size: 0.85rem;
+      min-width: 120px;
+      cursor: pointer;
+    }
+
+    .language-select:focus {
+      outline: none;
+      border-color: var(--accent-blue);
+    }
+
+    .run-button {
+      background: var(--accent-green);
+      border: none;
+      color: white;
+      border-radius: 6px;
+      padding: 0.5rem 1.25rem;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .run-button:hover:not(:disabled) {
+      background: #00a085;
+      transform: translateY(-1px);
+    }
+
+    .run-button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .run-button.loading {
+      background: var(--accent-orange);
+    }
+
+    /* Editor */
+    .editor-container {
+      flex: 1;
+      position: relative;
+      background: var(--bg-primary);
+    }
+
+    #editor {
+      height: 100%;
+      width: 100%;
+    }
+
+    /* Right Panel Tabs */
+    .panel-tabs {
+      background: var(--bg-tertiary);
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      padding: 0 1rem;
+    }
+
+    .tab-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-secondary);
+      padding: 0.75rem 1rem;
+      font-size: 0.85rem;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      transition: all 0.2s;
+    }
+
+    .tab-btn.active {
+      color: var(--text-primary);
+      border-bottom-color: var(--accent-green);
+    }
+
+    .tab-btn:hover {
+      color: var(--text-primary);
+    }
+
+    /* Tab Content */
+    .tab-content {
+      flex: 1;
+      display: none;
+      flex-direction: column;
+    }
+
+    .tab-content.active {
+      display: flex;
+    }
+
+    /* Input Tab */
+    .input-section {
+      flex: 1;
+      padding: 1rem;
+    }
+
+    .input-label {
+      color: var(--text-secondary);
+      font-size: 0.85rem;
+      margin-bottom: 0.5rem;
+      display: block;
+    }
+
+    .input-textarea {
+      width: 100%;
+      height: 200px;
+      background: var(--bg-primary);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      color: var(--text-primary);
+      padding: 0.75rem;
+      font-family: 'Consolas', 'Monaco', monospace;
+      font-size: 0.85rem;
+      resize: vertical;
+      min-height: 100px;
+    }
+
+    .input-textarea:focus {
+      outline: none;
+      border-color: var(--accent-blue);
+    }
+
+    /* Output Tab */
+    .output-section {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .output-header {
+      background: var(--bg-tertiary);
+      border-bottom: 1px solid var(--border-color);
+      padding: 0.75rem 1rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .status-info {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .status-badge {
+      padding: 0.25rem 0.5rem;
+      border-radius: 12px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    .status-accepted { background: rgba(0, 184, 148, 0.2); color: var(--accent-green); }
+    .status-error { background: rgba(214, 48, 49, 0.2); color: var(--accent-red); }
+    .status-running { background: rgba(253, 203, 110, 0.2); color: var(--accent-yellow); }
+
+    .metrics {
+      display: flex;
+      gap: 1rem;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    .copy-btn {
+      background: transparent;
+      border: 1px solid var(--border-color);
+      color: var(--text-secondary);
+      border-radius: 4px;
+      padding: 0.25rem 0.5rem;
+      font-size: 0.75rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .copy-btn:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+    }
+
+    .output-content {
+      flex: 1;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      padding: 1rem;
+      font-family: 'Consolas', 'Monaco', monospace;
+      font-size: 0.85rem;
+      line-height: 1.4;
+      overflow-y: auto;
       white-space: pre-wrap;
-      font-size: 1rem;
-      margin-bottom: 0;
+      word-break: break-word;
     }
-    .theme-toggle {
-      position: absolute;
-      top: 20px;
-      right: 30px;
-      z-index: 10;
+
+    .output-empty {
+      color: var(--text-muted);
+      text-align: center;
+      padding: 3rem 1rem;
+      font-style: italic;
     }
-    .btn-copy {
-      float: right;
-      margin-top: -8px;
-      margin-bottom: 8px;
+
+    /* Loading States */
+    .loading-spinner {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      border: 2px solid transparent;
+      border-top: 2px solid currentColor;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
     }
-    @media (max-width: 600px) {
-      #editor { height: 220px !important; }
-      .theme-toggle { right: 10px; top: 10px; }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
     }
-    /* Light mode */
+
+    /* Resizer */
+    .resizer {
+      width: 4px;
+      background: var(--border-color);
+      cursor: col-resize;
+      position: relative;
+      transition: background 0.2s;
+    }
+
+    .resizer:hover {
+      background: var(--accent-blue);
+    }
+
+    /* Light Mode */
     body.light-mode {
-      background: #f8f9fa !important;
-      color: #222 !important;
+      --bg-primary: #ffffff;
+      --bg-secondary: #f8f9fa;
+      --bg-tertiary: #f1f2f3;
+      --bg-hover: #e9ecef;
+      --border-color: #e1e4e8;
+      --text-primary: #24292e;
+      --text-secondary: #586069;
+      --text-muted: #6a737d;
     }
-    body.light-mode #output-card pre {
-      background: #f4f4f4;
-      color: #222;
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .main-container {
+        flex-direction: column;
+      }
+      
+      .left-panel, .right-panel {
+        width: 100%;
+        height: 50%;
+      }
+      
+      .header {
+        padding: 0.5rem 1rem;
+      }
+      
+      .header-left, .header-right {
+        gap: 0.5rem;
+      }
+      
+      .user-info {
+        display: none;
+      }
     }
   </style>
 </head>
-<body class="p-4">
-  <button id="themeToggle" class="btn btn-dark theme-toggle"><i class="fas fa-moon"></i></button>
-  <div class="container">
-    <h3 class="mb-4">Welcome, <?= htmlspecialchars($_SESSION['user']['username']) ?> 👋</h3>
+<body>
+  <!-- Header -->
+  <div class="header">
+    <div class="header-left">
+      <a href="#" class="logo">CodeRunner</a>
+      <div class="user-info">Welcome, Developer</div>
+    </div>
+    <div class="header-right">
+      <button class="theme-btn" id="themeToggle">
+        <i class="fas fa-moon"></i>
+      </button>
+    </div>
+  </div>
 
-    <div class="mb-3 row">
-      <div class="col-md-4">
-        <label for="language" class="form-label">Choose Language:</label>
-        <select id="language" class="form-select">
+  <!-- Main Container -->
+  <div class="main-container">
+    <!-- Left Panel - Code Editor -->
+    <div class="left-panel">
+      <div class="control-bar">
+        <select class="language-select" id="languageSelect">
+          <option value="71">Python</option>
           <option value="54">C++</option>
           <option value="62">Java</option>
-          <option value="71" selected>Python</option>
           <option value="63">JavaScript</option>
         </select>
+        <button class="run-button" id="runButton">
+          <i class="fas fa-play"></i>
+          <span>Run</span>
+        </button>
       </div>
-      <div class="col-md-8 text-end align-self-end">
-        <button id="run" class="btn btn-success"><i class="fas fa-play"></i> Run</button>
+      <div class="editor-container">
+        <div id="editor"></div>
       </div>
     </div>
 
-    <textarea id="code" hidden>print("Hello, World!")</textarea>
-    <div id="editor" class="border mb-3"></div>
+    <!-- Resizer -->
+    <div class="resizer" id="resizer"></div>
 
-    <div class="mb-3">
-      <label class="form-label">Custom Input:</label>
-      <textarea id="input" class="form-control" placeholder="Enter input for your program..."></textarea>
-    </div>
+    <!-- Right Panel - Input/Output -->
+    <div class="right-panel">
+      <div class="panel-tabs">
+        <button class="tab-btn active" data-tab="input">
+          <i class="fas fa-keyboard me-1"></i>Input
+        </button>
+        <button class="tab-btn" data-tab="output">
+          <i class="fas fa-terminal me-1"></i>Output
+        </button>
+      </div>
 
-    <div id="output-area">
-      <div id="output-card"></div>
+      <!-- Input Tab -->
+      <div class="tab-content active" id="input-tab">
+        <div class="input-section">
+          <label class="input-label">Custom Input</label>
+          <textarea class="input-textarea" id="customInput" 
+                    placeholder="Enter input for your program here..."></textarea>
+        </div>
+      </div>
+
+      <!-- Output Tab -->
+      <div class="tab-content" id="output-tab">
+        <div class="output-section">
+          <div class="output-header" id="outputHeader" style="display: none;">
+            <div class="status-info">
+              <span class="status-badge" id="statusBadge">Ready</span>
+              <div class="metrics" id="metrics"></div>
+            </div>
+            <button class="copy-btn" id="copyBtn">
+              <i class="fas fa-copy"></i>
+            </button>
+          </div>
+          <div class="output-content" id="outputContent">
+            <div class="output-empty">
+              Click "Run" to see your program output here
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -108,60 +486,121 @@ if (!isset($_SESSION['user'])) {
 
     let editor;
     let currentTheme = 'vs-dark';
+
+    // Language configurations
+    const languages = {
+      '71': { 
+        name: 'python', 
+        template: '# Python Code\nprint("Hello, World!")\n\n# Your code here...' 
+      },
+      '54': { 
+        name: 'cpp', 
+        template: '#include <iostream>\nusing namespace std;\n\nint main() {\n    cout << "Hello, World!" << endl;\n    return 0;\n}' 
+      },
+      '62': { 
+        name: 'java', 
+        template: 'public class Solution {\n    public static void main(String[] args) {\n        System.out.println("Hello, World!");\n    }\n}' 
+      },
+      '63': { 
+        name: 'javascript', 
+        template: '// JavaScript Code\nconsole.log("Hello, World!");\n\n// Your code here...' 
+      }
+    };
+
+    // Initialize Monaco Editor
     require(["vs/editor/editor.main"], function () {
       editor = monaco.editor.create(document.getElementById('editor'), {
-        value: document.getElementById('code').value,
+        value: languages['71'].template,
         language: 'python',
         theme: currentTheme,
         automaticLayout: true,
-        fontSize: 16,
-        minimap: { enabled: false }
+        fontSize: 14,
+        lineHeight: 20,
+        minimap: { enabled: false },
+        scrollBeyondLastLine: false,
+        wordWrap: 'on',
+        lineNumbers: 'on',
+        renderLineHighlight: 'gutter',
+        selectOnLineNumbers: true,
+        matchBrackets: 'always',
+        folding: true,
+        foldingHighlight: false,
+        renderIndentGuides: true,
+        occurrencesHighlight: false,
+        overviewRulerBorder: false,
+        hideCursorInOverviewRuler: true
       });
     });
 
     // Theme Toggle
-    document.getElementById('themeToggle').onclick = function() {
+    document.getElementById('themeToggle').addEventListener('click', function() {
       document.body.classList.toggle('light-mode');
-      currentTheme = document.body.classList.contains('light-mode') ? 'vs-light' : 'vs-dark';
+      const isLight = document.body.classList.contains('light-mode');
+      currentTheme = isLight ? 'vs' : 'vs-dark';
       monaco.editor.setTheme(currentTheme);
-      this.classList.toggle('btn-dark');
-      this.classList.toggle('btn-light');
-      this.innerHTML = document.body.classList.contains('light-mode')
-        ? '<i class="fas fa-sun"></i>'
-        : '<i class="fas fa-moon"></i>';
-    };
-
-    // Language Selector Logic
-    document.getElementById('language').addEventListener('change', function () {
-      const langMap = {
-        '54': 'cpp',
-        '62': 'java',
-        '71': 'python',
-        '63': 'javascript'
-      };
-      const templates = {
-        '54': '#include <iostream>\nint main() {\n    std::cout << "Hello, World!";\n    return 0;\n}',
-        '62': 'public class Main {\n    public static void main(String[] args) {\n        System.out.println("Hello, World!");\n    }\n}',
-        '71': 'print("Hello, World!")',
-        '63': 'console.log("Hello, World!");'
-      };
-      monaco.editor.setModelLanguage(editor.getModel(), langMap[this.value]);
-      editor.setValue(templates[this.value]);
+      this.innerHTML = isLight ? '<i class="fas fa-sun"></i>' : '<i class="fas fa-moon"></i>';
     });
 
-    // Run Button Logic
-    document.getElementById('run').addEventListener('click', function () {
-      const code = editor.getValue();
-      const input = document.getElementById('input').value;
-      const language = document.getElementById('language').value;
-      const outputCard = document.getElementById('output-card');
+    // Language Selection
+    document.getElementById('languageSelect').addEventListener('change', function() {
+      const langId = this.value;
+      const config = languages[langId];
+      monaco.editor.setModelLanguage(editor.getModel(), config.name);
+      editor.setValue(config.template);
+    });
 
-      outputCard.innerHTML = `
-        <div class="alert alert-secondary text-center">
-          <i class="fas fa-spinner fa-spin"></i> Running...
-        </div>
-      `;
+    // Tab Switching
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.addEventListener('click', function() {
+        const tabName = this.dataset.tab;
+        
+        // Update active tab button
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        this.classList.add('active');
+        
+        // Show corresponding tab content
+        document.querySelectorAll('.tab-content').forEach(content => {
+          content.classList.remove('active');
+        });
+        document.getElementById(tabName + '-tab').classList.add('active');
+      });
+    });
 
+    // Run Code
+    document.getElementById('runButton').addEventListener('click', function() {
+      const code = editor.getValue().trim();
+      if (!code) {
+        showToast('Please write some code first!', 'warning');
+        return;
+      }
+
+      const input = document.getElementById('customInput').value;
+      const language = document.getElementById('languageSelect').value;
+      
+      // Switch to output tab
+      document.querySelector('[data-tab="output"]').click();
+      
+      // Show loading state
+      this.classList.add('loading');
+      this.innerHTML = '<div class="loading-spinner"></div><span>Running</span>';
+      this.disabled = true;
+      
+      showOutput({ status: 'running', output: 'Executing your code...' });
+
+      // Simulate API call (replace with your actual endpoint)
+      setTimeout(() => {
+        const mockResult = {
+          status: 'Accepted',
+          output: 'Hello, World!\n\nExecution completed successfully.',
+          time: '0.23',
+          memory: '8420'
+        };
+        
+        showOutput(mockResult);
+        resetRunButton();
+      }, 2000);
+
+      /* Uncomment for actual API integration:
       fetch('Run.php', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -169,58 +608,122 @@ if (!isset($_SESSION['user'])) {
       })
       .then(response => response.json())
       .then(data => {
-        let statusClass = 'primary';
-        let statusIcon = 'fa-info-circle';
-        if (data.status && data.status.toLowerCase().includes('accepted')) {
-          statusClass = 'success';
-          statusIcon = 'fa-check-circle';
-        } else if (data.status && (data.status.toLowerCase().includes('error') || data.status.toLowerCase().includes('failed'))) {
-          statusClass = 'danger';
-          statusIcon = 'fa-times-circle';
-        } else if (data.status && data.status.toLowerCase().includes('compil')) {
-          statusClass = 'warning';
-          statusIcon = 'fa-exclamation-triangle';
-        }
-
-        outputCard.innerHTML = `
-          <div class="card shadow-sm" id="output-card-inner">
-            <div class="card-header bg-${statusClass} text-white">
-              <i class="fas ${statusIcon}"></i>
-              <strong>Status:</strong> ${data.status}
-            </div>
-            <div class="card-body">
-              <div class="mb-2">
-                <span class="badge bg-primary"><i class="fas fa-clock"></i> Time: ${data.time} sec</span>
-                <span class="badge bg-info text-dark ms-2"><i class="fas fa-memory"></i> Memory: ${data.memory} KB</span>
-                <button class="btn btn-outline-secondary btn-sm btn-copy" id="copyOutput"><i class="fas fa-copy"></i> Copy Output</button>
-              </div>
-              <pre id="outputText">${data.output}</pre>
-            </div>
-          </div>
-        `;
-
-        // Copy output feature with SweetAlert2 feedback
-        document.getElementById('copyOutput').onclick = function() {
-          const text = document.getElementById('outputText').innerText;
-          navigator.clipboard.writeText(text);
-          Swal.fire({
-            icon: 'success',
-            title: 'Copied!',
-            text: 'Output copied to clipboard.',
-            timer: 1200,
-            showConfirmButton: false,
-            background: document.body.classList.contains('light-mode') ? '#fff' : '#23272b',
-            color: document.body.classList.contains('light-mode') ? '#222' : '#f1f1f1'
-          });
-        };
+        showOutput(data);
+        resetRunButton();
       })
-      .catch(err => {
-        outputCard.innerHTML = `
-          <div class="alert alert-danger">
-            <strong>Error:</strong> ${err.message}
-          </div>
-        `;
+      .catch(error => {
+        showOutput({ 
+          status: 'Error', 
+          output: 'Failed to execute code: ' + error.message 
+        });
+        resetRunButton();
       });
+      */
+    });
+
+    function resetRunButton() {
+      const btn = document.getElementById('runButton');
+      btn.classList.remove('loading');
+      btn.innerHTML = '<i class="fas fa-play"></i><span>Run</span>';
+      btn.disabled = false;
+    }
+
+    function showOutput(data) {
+      const header = document.getElementById('outputHeader');
+      const badge = document.getElementById('statusBadge');
+      const metrics = document.getElementById('metrics');
+      const content = document.getElementById('outputContent');
+      
+      header.style.display = 'flex';
+      
+      // Update status badge
+      badge.className = 'status-badge';
+      if (data.status.toLowerCase().includes('accept')) {
+        badge.classList.add('status-accepted');
+      } else if (data.status.toLowerCase().includes('error') || data.status.toLowerCase().includes('fail')) {
+        badge.classList.add('status-error');
+      } else if (data.status.toLowerCase().includes('run')) {
+        badge.classList.add('status-running');
+      }
+      badge.textContent = data.status;
+      
+      // Update metrics
+      if (data.time && data.memory) {
+        metrics.innerHTML = `
+          <span><i class="fas fa-clock"></i> ${data.time}s</span>
+          <span><i class="fas fa-memory"></i> ${data.memory} KB</span>
+        `;
+      } else {
+        metrics.innerHTML = '';
+      }
+      
+      // Update content
+      content.textContent = data.output || 'No output';
+    }
+
+    // Copy functionality
+    document.getElementById('copyBtn').addEventListener('click', function() {
+      const content = document.getElementById('outputContent').textContent;
+      navigator.clipboard.writeText(content).then(() => {
+        this.innerHTML = '<i class="fas fa-check"></i>';
+        showToast('Output copied to clipboard!', 'success');
+        setTimeout(() => {
+          this.innerHTML = '<i class="fas fa-copy"></i>';
+        }, 1500);
+      });
+    });
+
+    // Panel Resizer
+    let isResizing = false;
+    
+    document.getElementById('resizer').addEventListener('mousedown', function(e) {
+      isResizing = true;
+      document.addEventListener('mousemove', handleResize);
+      document.addEventListener('mouseup', stopResize);
+    });
+
+    function handleResize(e) {
+      if (!isResizing) return;
+      
+      const container = document.querySelector('.main-container');
+      const containerRect = container.getBoundingClientRect();
+      const leftPanel = document.querySelector('.left-panel');
+      const rightPanel = document.querySelector('.right-panel');
+      
+      const percentage = ((e.clientX - containerRect.left) / containerRect.width) * 100;
+      
+      if (percentage > 30 && percentage < 70) {
+        leftPanel.style.width = percentage + '%';
+        rightPanel.style.width = (100 - percentage) + '%';
+      }
+    }
+
+    function stopResize() {
+      isResizing = false;
+      document.removeEventListener('mousemove', handleResize);
+      document.removeEventListener('mouseup', stopResize);
+    }
+
+    // Toast notifications
+    function showToast(message, type = 'info') {
+      Swal.fire({
+        toast: true,
+        position: 'top-end',
+        icon: type,
+        title: message,
+        showConfirmButton: false,
+        timer: 2000,
+        background: document.body.classList.contains('light-mode') ? '#fff' : '#2d2d2d',
+        color: document.body.classList.contains('light-mode') ? '#24292e' : '#ffffff'
+      });
+    }
+
+    // Keyboard shortcuts
+    document.addEventListener('keydown', function(e) {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        e.preventDefault();
+        document.getElementById('runButton').click();
+      }
     });
   </script>
 </body>

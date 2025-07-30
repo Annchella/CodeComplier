@@ -6,269 +6,594 @@ include('../includes/Navbar.php');
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Tic-Tac-Toe</title>
-  <!-- Bootstrap CSS -->
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <title>Classic Tic-Tac-Toe</title>
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Lato:wght@300;400;500&display=swap" rel="stylesheet">
   <!-- Font Awesome -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
-  <!-- Animate.css -->
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/animate.css@4.1.1/animate.min.css"/>
-  <!-- SweetAlert2 -->
-  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <!-- AOS Animation Library -->
+  <link href="https://unpkg.com/aos@2.3.1/dist/aos.css" rel="stylesheet">
+  <!-- Notyf for elegant notifications -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/notyf@3/notyf.min.css">
+  
   <style>
-    body {
-      background: linear-gradient(120deg, #f6d365 0%, #fda085 100%);
-      min-height: 100vh;
-      font-family: 'Segoe UI', 'Roboto', Arial, sans-serif;
+    :root {
+      --primary-gold: #d4af37;
+      --secondary-gold: #b8941f;
+      --dark-navy: #1a1a2e;
+      --light-navy: #16213e;
+      --cream: #f8f6f0;
+      --text-dark: #2c2c2c;
+      --text-light: #6c6c6c;
+      --shadow-elegant: 0 10px 30px rgba(0, 0, 0, 0.15);
+      --shadow-subtle: 0 5px 15px rgba(0, 0, 0, 0.08);
     }
-    .ttt-glass {
-      background: rgba(255,255,255,0.92);
-      border-radius: 2rem;
-      box-shadow: 0 8px 32px rgba(0,0,0,0.13);
-      padding: 2.5rem 2rem 2rem 2rem;
-      max-width: 480px;
-      margin: 50px auto 40px auto;
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Lato', sans-serif;
+      background: linear-gradient(135deg, var(--cream) 0%, #f0ebe5 100%);
+      min-height: 100vh;
+      color: var(--text-dark);
+      position: relative;
+    }
+
+    /* Elegant background pattern */
+    body::before {
+      content: '';
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: 
+        radial-gradient(circle at 25% 25%, rgba(212, 175, 55, 0.05) 0%, transparent 50%),
+        radial-gradient(circle at 75% 75%, rgba(212, 175, 55, 0.03) 0%, transparent 50%);
+      z-index: -1;
+      pointer-events: none;
+    }
+
+    .game-container {
+      max-width: 600px;
+      margin: 3rem auto;
+      padding: 0 1rem;
+    }
+
+    .game-card {
+      background: rgba(255, 255, 255, 0.95);
+      border-radius: 12px;
+      box-shadow: var(--shadow-elegant);
+      padding: 3rem 2.5rem;
       text-align: center;
+      border: 1px solid rgba(212, 175, 55, 0.2);
+      backdrop-filter: blur(10px);
       position: relative;
       overflow: hidden;
-      border: 3px solid #ffb347;
-      animation: ttt-glow 2s infinite alternate;
     }
-    @keyframes ttt-glow {
-      0% { box-shadow: 0 0 20px #ffb347, 0 0 40px #ffb34744; }
-      100% { box-shadow: 0 0 40px #ffb347, 0 0 80px #ffb347aa; }
+
+    .game-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 4px;
+      background: linear-gradient(90deg, var(--primary-gold), var(--secondary-gold));
     }
-    .ttt-title {
-      font-size: 2.2rem;
-      font-weight: bold;
-      color: #ff7e5f;
-      margin-bottom: 1.2rem;
-      letter-spacing: 1px;
-      text-shadow: 0 0 8px #ffb347cc;
+
+    .game-title {
+      font-family: 'Playfair Display', serif;
+      font-size: 2.5rem;
+      font-weight: 700;
+      color: var(--dark-navy);
+      margin-bottom: 0.5rem;
+      letter-spacing: -0.02em;
     }
-    .ttt-board {
-      display: grid;
-      grid-template-columns: repeat(3, 80px);
-      grid-gap: 12px;
-      justify-content: center;
-      margin: 1.5rem auto 0 auto;
+
+    .game-subtitle {
+      font-size: 1rem;
+      color: var(--text-light);
+      margin-bottom: 2rem;
+      font-style: italic;
     }
-    .ttt-cell {
-      width: 80px; height: 80px;
-      font-size: 2.3rem;
-      font-weight: bold;
-      border-radius: 1rem;
-      border: 2px solid #ffb347;
-      background: rgba(255,255,255,0.7);
-      color: #ff7e5f;
-      transition: background 0.2s, color 0.2s, box-shadow 0.2s;
-      cursor: pointer;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-      outline: none;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      user-select: none;
-    }
-    .ttt-cell:hover {
-      background: #ffb34722;
-      color: #ff3e55;
-      box-shadow: 0 0 12px #ffb34755;
-    }
-    .ttt-status {
-      margin: 1.2rem 0 0.5rem 0;
-      font-weight: 600;
-      color: #ff7e5f;
-      font-size: 1.1rem;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 0.7rem;
-    }
+
     .scoreboard {
       display: flex;
       justify-content: center;
-      gap: 2.5rem;
-      margin-bottom: 1.2rem;
-      margin-top: 0.5rem;
+      gap: 2rem;
+      margin-bottom: 2rem;
+      flex-wrap: wrap;
     }
-    .score-box {
-      background: rgba(255,255,255,0.7);
-      border-radius: 1rem;
-      padding: 0.7rem 1.2rem;
+
+    .score-item {
+      background: var(--cream);
+      border: 1px solid rgba(212, 175, 55, 0.3);
+      border-radius: 8px;
+      padding: 1rem 1.5rem;
+      min-width: 120px;
+      transition: all 0.3s ease;
+    }
+
+    .score-item:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-subtle);
+    }
+
+    .score-label {
+      font-size: 0.85rem;
+      color: var(--text-light);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 0.25rem;
+    }
+
+    .score-value {
+      font-size: 1.5rem;
+      font-weight: 600;
+      color: var(--dark-navy);
+    }
+
+    .game-status {
+      margin: 1.5rem 0;
+      padding: 1rem;
+      background: rgba(212, 175, 55, 0.1);
+      border-radius: 8px;
+      border-left: 4px solid var(--primary-gold);
+    }
+
+    .status-text {
       font-size: 1.1rem;
-      color: #ff7e5f;
       font-weight: 500;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+      color: var(--dark-navy);
       display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+    }
+
+    .game-board {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      max-width: 300px;
+      margin: 2rem auto;
+      padding: 1.5rem;
+      background: var(--dark-navy);
+      border-radius: 12px;
+      box-shadow: var(--shadow-elegant);
+    }
+
+    .game-cell {
+      aspect-ratio: 1;
+      background: var(--cream);
+      border: none;
+      border-radius: 6px;
+      font-size: 2rem;
+      font-weight: 600;
+      color: var(--dark-navy);
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .game-cell::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(212, 175, 55, 0.2), transparent);
+      transition: left 0.5s ease;
+    }
+
+    .game-cell:hover::before {
+      left: 100%;
+    }
+
+    .game-cell:hover {
+      background: rgba(212, 175, 55, 0.1);
+      transform: scale(1.05);
+      box-shadow: 0 4px 12px rgba(212, 175, 55, 0.3);
+    }
+
+    .game-cell:disabled {
+      cursor: not-allowed;
+      opacity: 0.8;
+    }
+
+    .game-cell.x-mark {
+      color: #c53030;
+    }
+
+    .game-cell.o-mark {
+      color: #3182ce;
+    }
+
+    .game-controls {
+      display: flex;
+      justify-content: center;
+      gap: 1rem;
+      margin-top: 2rem;
+      flex-wrap: wrap;
+    }
+
+    .elegant-btn {
+      padding: 0.75rem 2rem;
+      border: 2px solid var(--primary-gold);
+      background: transparent;
+      color: var(--primary-gold);
+      border-radius: 6px;
+      font-weight: 500;
+      font-size: 0.95rem;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      position: relative;
+      overflow: hidden;
+      text-decoration: none;
+      display: inline-flex;
       align-items: center;
       gap: 0.5rem;
     }
-    .ttt-btn {
-      font-size: 1.1rem;
-      padding: 0.7rem 2.2rem;
-      border-radius: 2rem;
-      margin: 0.3rem;
-      background: linear-gradient(90deg, #ffecd2 0%, #fcb69f 100%);
-      color: #ff7e5f;
-      border: none;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-      transition: background 0.2s, color 0.2s, transform 0.15s;
-      font-weight: 500;
+
+    .elegant-btn::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: var(--primary-gold);
+      transition: left 0.3s ease;
+      z-index: -1;
     }
-    .ttt-btn:hover {
-      background: linear-gradient(90deg, #fcb69f 0%, #ffecd2 100%);
-      color: #fff;
-      transform: scale(1.07);
+
+    .elegant-btn:hover::before {
+      left: 0;
     }
-    @media (max-width: 600px) {
-      .ttt-glass { padding: 1.2rem 0.5rem; }
-      .ttt-board { grid-template-columns: repeat(3, 55px); grid-gap: 7px; }
-      .ttt-cell { width: 55px; height: 55px; font-size: 1.4rem; }
-      .scoreboard { gap: 1.2rem; }
-      .score-box { padding: 0.5rem 0.7rem; font-size: 0.95rem; }
+
+    .elegant-btn:hover {
+      color: white;
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(212, 175, 55, 0.4);
+    }
+
+    .elegant-btn.primary {
+      background: var(--primary-gold);
+      color: white;
+    }
+
+    .elegant-btn.primary::before {
+      background: var(--secondary-gold);
+    }
+
+    /* Winning animation */
+    @keyframes celebrate {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.1); }
+    }
+
+    .winner-cell {
+      animation: celebrate 0.6s ease-in-out;
+      background: rgba(212, 175, 55, 0.3) !important;
+    }
+
+    /* Responsive design */
+    @media (max-width: 768px) {
+      .game-container {
+        margin: 1rem auto;
+        padding: 0 0.5rem;
+      }
+
+      .game-card {
+        padding: 2rem 1.5rem;
+      }
+
+      .game-title {
+        font-size: 2rem;
+      }
+
+      .scoreboard {
+        gap: 1rem;
+      }
+
+      .score-item {
+        padding: 0.75rem 1rem;
+        min-width: 100px;
+      }
+
+      .game-board {
+        max-width: 250px;
+        padding: 1rem;
+      }
+
+      .game-cell {
+        font-size: 1.5rem;
+      }
+
+      .game-controls {
+        flex-direction: column;
+        align-items: center;
+      }
+
+      .elegant-btn {
+        width: 100%;
+        max-width: 200px;
+        justify-content: center;
+      }
+    }
+
+    /* Custom notification styles */
+    .notyf__toast--success {
+      background: var(--primary-gold);
+    }
+
+    .notyf__toast--error {
+      background: var(--secondary-gold);
     }
   </style>
 </head>
 <body>
-  <div class="ttt-glass animate__animated animate__fadeInDown">
-    <div class="ttt-title"><i class="fas fa-gamepad text-warning"></i> Tic-Tac-Toe</div>
-    <div class="scoreboard">
-      <div class="score-box"><i class="fas fa-times text-danger"></i> X: <span id="scoreX">0</span></div>
-      <div class="score-box"><i class="fas fa-circle text-primary"></i> O: <span id="scoreO">0</span></div>
-      <div class="score-box"><i class="fas fa-equals text-secondary"></i> Draws: <span id="scoreDraw">0</span></div>
+  <div class="game-container">
+    <div class="game-card" data-aos="fade-up" data-aos-duration="800">
+      <h1 class="game-title">Tic-Tac-Toe</h1>
+      <p class="game-subtitle">A timeless classic reimagined</p>
+      
+      <div class="scoreboard" data-aos="fade-up" data-aos-delay="200">
+        <div class="score-item">
+          <div class="score-label">Player X</div>
+          <div class="score-value" id="scoreX">0</div>
+        </div>
+        <div class="score-item">
+          <div class="score-label">Player O</div>
+          <div class="score-value" id="scoreO">0</div>
+        </div>
+        <div class="score-item">
+          <div class="score-label">Draws</div>
+          <div class="score-value" id="scoreDraw">0</div>
+        </div>
+      </div>
+
+      <div class="game-status" data-aos="fade-up" data-aos-delay="400">
+        <div class="status-text" id="gameStatus">
+          <i class="fas fa-times" style="color: #c53030;"></i>
+          <span>Player X's turn</span>
+        </div>
+      </div>
+
+      <div class="game-board" data-aos="zoom-in" data-aos-delay="600">
+        <button class="game-cell" data-cell="0"></button>
+        <button class="game-cell" data-cell="1"></button>
+        <button class="game-cell" data-cell="2"></button>
+        <button class="game-cell" data-cell="3"></button>
+        <button class="game-cell" data-cell="4"></button>
+        <button class="game-cell" data-cell="5"></button>
+        <button class="game-cell" data-cell="6"></button>
+        <button class="game-cell" data-cell="7"></button>
+        <button class="game-cell" data-cell="8"></button>
+      </div>
+
+      <div class="game-controls" data-aos="fade-up" data-aos-delay="800">
+        <button class="elegant-btn primary" onclick="restartGame()">
+          <i class="fas fa-redo"></i>
+          <span>New Game</span>
+        </button>
+        <button class="elegant-btn" onclick="resetScore()">
+          <i class="fas fa-eraser"></i>
+          <span>Reset Score</span>
+        </button>
+      </div>
     </div>
-    <div class="ttt-status" id="ttt-status">
-      <span id="turnIcon"><i class="fas fa-times text-danger"></i></span>
-      <span id="turnText">Player X's turn</span>
-    </div>
-    <div class="ttt-board mb-2" id="ttt-board">
-      <button class="ttt-cell" data-cell="0"></button>
-      <button class="ttt-cell" data-cell="1"></button>
-      <button class="ttt-cell" data-cell="2"></button>
-      <button class="ttt-cell" data-cell="3"></button>
-      <button class="ttt-cell" data-cell="4"></button>
-      <button class="ttt-cell" data-cell="5"></button>
-      <button class="ttt-cell" data-cell="6"></button>
-      <button class="ttt-cell" data-cell="7"></button>
-      <button class="ttt-cell" data-cell="8"></button>
-    </div>
-    <button class="ttt-btn" onclick="tttRestart()"><i class="fas fa-redo"></i> Restart</button>
-    <button class="ttt-btn" onclick="tttResetScore()"><i class="fas fa-eraser"></i> Reset Score</button>
   </div>
-  <!-- Libraries -->
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/animate.css@4.1.1/animate.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+  <!-- Scripts -->
+  <script src="https://unpkg.com/aos@2.3.1/dist/aos.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/notyf@3/notyf.min.js"></script>
+  
   <script>
-    // Scoreboard
-    let scoreX = localStorage.getItem('tttScoreX') ? parseInt(localStorage.getItem('tttScoreX')) : 0;
-    let scoreO = localStorage.getItem('tttScoreO') ? parseInt(localStorage.getItem('tttScoreO')) : 0;
-    let scoreDraw = localStorage.getItem('tttScoreDraw') ? parseInt(localStorage.getItem('tttScoreDraw')) : 0;
-    document.getElementById('scoreX').textContent = scoreX;
-    document.getElementById('scoreO').textContent = scoreO;
-    document.getElementById('scoreDraw').textContent = scoreDraw;
+    // Initialize AOS
+    AOS.init({
+      duration: 600,
+      easing: 'ease-out-cubic',
+      once: true
+    });
 
-    // Game logic
-    let tttBoard = Array(9).fill('');
-    let tttCurrent = 'X';
-    let tttGameOver = false;
-    const tttStatus = document.getElementById('ttt-status');
-    const tttCells = document.querySelectorAll('.ttt-cell');
-    const turnIcon = document.getElementById('turnIcon');
-    const turnText = document.getElementById('turnText');
-
-    function tttCheckWinner() {
-      const wins = [
-        [0,1,2],[3,4,5],[6,7,8],
-        [0,3,6],[1,4,7],[2,5,8],
-        [0,4,8],[2,4,6]
-      ];
-      for (let w of wins) {
-        if (tttBoard[w[0]] && tttBoard[w[0]] === tttBoard[w[1]] && tttBoard[w[1]] === tttBoard[w[2]]) {
-          return tttBoard[w[0]];
-        }
-      }
-      if (tttBoard.every(cell => cell)) return 'Draw';
-      return null;
-    }
-
-    function tttHandleClick(e) {
-      const idx = +e.target.dataset.cell;
-      if (tttBoard[idx] || tttGameOver) return;
-      tttBoard[idx] = tttCurrent;
-      e.target.innerHTML = tttCurrent === 'X'
-        ? '<i class="fas fa-times text-danger"></i>'
-        : '<i class="fas fa-circle text-primary"></i>';
-      const winner = tttCheckWinner();
-      if (winner) {
-        tttGameOver = true;
-        if (winner === 'Draw') {
-          scoreDraw++;
-          localStorage.setItem('tttScoreDraw', scoreDraw);
-          document.getElementById('scoreDraw').textContent = scoreDraw;
-          tttStatus.innerHTML = `<i class="fas fa-equals text-secondary"></i> <span>It's a draw!</span>`;
-          Swal.fire({
-            icon: 'info',
-            title: "It's a draw!",
-            showConfirmButton: false,
-            timer: 1400
-          });
-        } else {
-          if (winner === 'X') {
-            scoreX++;
-            localStorage.setItem('tttScoreX', scoreX);
-            document.getElementById('scoreX').textContent = scoreX;
-          } else {
-            scoreO++;
-            localStorage.setItem('tttScoreO', scoreO);
-            document.getElementById('scoreO').textContent = scoreO;
+    // Initialize Notyf
+    const notyf = new Notyf({
+      duration: 2000,
+      position: { x: 'right', y: 'top' },
+      types: [
+        {
+          type: 'success',
+          background: '#d4af37',
+          icon: {
+            className: 'fas fa-trophy',
+            tagName: 'i',
+            color: 'white'
           }
-          tttStatus.innerHTML = winner === 'X'
-            ? `<i class="fas fa-times text-danger"></i> <span>Player X wins!</span>`
-            : `<i class="fas fa-circle text-primary"></i> <span>Player O wins!</span>`;
-          Swal.fire({
-            icon: 'success',
-            title: `Player ${winner} wins!`,
-            showConfirmButton: false,
-            timer: 1400
-          });
+        },
+        {
+          type: 'info',
+          background: '#b8941f',
+          icon: {
+            className: 'fas fa-handshake',
+            tagName: 'i',
+            color: 'white'
+          }
         }
-      } else {
-        tttCurrent = tttCurrent === 'X' ? 'O' : 'X';
-        turnIcon.innerHTML = tttCurrent === 'X'
-          ? '<i class="fas fa-times text-danger"></i>'
-          : '<i class="fas fa-circle text-primary"></i>';
-        turnText.textContent = `Player ${tttCurrent}'s turn`;
-      }
-    }
-    tttCells.forEach(cell => cell.addEventListener('click', tttHandleClick));
-    function tttRestart() {
-      tttBoard = Array(9).fill('');
-      tttCurrent = 'X';
-      tttGameOver = false;
-      tttCells.forEach(cell => cell.innerHTML = '');
-      turnIcon.innerHTML = '<i class="fas fa-times text-danger"></i>';
-      turnText.textContent = "Player X's turn";
-      tttStatus.classList.remove('animate__shakeX');
-    }
-    function tttResetScore() {
-      scoreX = scoreO = scoreDraw = 0;
-      localStorage.setItem('tttScoreX', 0);
-      localStorage.setItem('tttScoreO', 0);
-      localStorage.setItem('tttScoreDraw', 0);
-      document.getElementById('scoreX').textContent = 0;
-      document.getElementById('scoreO').textContent = 0;
-      document.getElementById('scoreDraw').textContent = 0;
-      tttRestart();
-      Swal.fire({
-        icon: 'info',
-        title: 'Scoreboard Reset!',
-        showConfirmButton: false,
-        timer: 1200
+      ]
+    });
+
+    // Game state
+    let gameBoard = Array(9).fill('');
+    let currentPlayer = 'X';
+    let gameActive = true;
+    let scores = {
+      X: parseInt(localStorage.getItem('tttScoreX')) || 0,
+      O: parseInt(localStorage.getItem('tttScoreO')) || 0,
+      draw: parseInt(localStorage.getItem('tttScoreDraw')) || 0
+    };
+
+    // DOM elements
+    const cells = document.querySelectorAll('.game-cell');
+    const gameStatus = document.getElementById('gameStatus');
+    const scoreElements = {
+      X: document.getElementById('scoreX'),
+      O: document.getElementById('scoreO'),
+      draw: document.getElementById('scoreDraw')
+    };
+
+    // Winning combinations
+    const winningCombinations = [
+      [0, 1, 2], [3, 4, 5], [6, 7, 8], // Rows
+      [0, 3, 6], [1, 4, 7], [2, 5, 8], // Columns
+      [0, 4, 8], [2, 4, 6] // Diagonals
+    ];
+
+    // Initialize game
+    function initGame() {
+      updateScoreDisplay();
+      updateGameStatus();
+      cells.forEach(cell => {
+        cell.addEventListener('click', handleCellClick);
       });
     }
-    tttRestart();
+
+    // Handle cell click
+    function handleCellClick(e) {
+      const cellIndex = parseInt(e.target.dataset.cell);
+      
+      if (gameBoard[cellIndex] !== '' || !gameActive) {
+        return;
+      }
+
+      // Make move
+      gameBoard[cellIndex] = currentPlayer;
+      e.target.textContent = currentPlayer;
+      e.target.classList.add(currentPlayer === 'X' ? 'x-mark' : 'o-mark');
+      e.target.disabled = true;
+
+      // Check for winner
+      if (checkWinner()) {
+        return;
+      }
+
+      // Check for draw
+      if (gameBoard.every(cell => cell !== '')) {
+        gameActive = false;
+        gameStatus.innerHTML = `
+          <i class="fas fa-handshake" style="color: #b8941f;"></i>
+          <span>It's a draw!</span>
+        `;
+        scores.draw++;
+        localStorage.setItem('tttScoreDraw', scores.draw);
+        updateScoreDisplay();
+        notyf.open({ type: 'info', message: 'Game ended in a draw!' });
+        return;
+      }
+
+      // Switch player
+      currentPlayer = currentPlayer === 'X' ? 'O' : 'X';
+      updateGameStatus();
+    }
+
+    // Check for winner
+    function checkWinner() {
+      for (let combination of winningCombinations) {
+        const [a, b, c] = combination;
+        if (gameBoard[a] && gameBoard[a] === gameBoard[b] && gameBoard[a] === gameBoard[c]) {
+          gameActive = false;
+          
+          // Highlight winning cells
+          combination.forEach(index => {
+            cells[index].classList.add('winner-cell');
+          });
+
+          // Update status
+          const winnerIcon = gameBoard[a] === 'X' ? 
+            '<i class="fas fa-times" style="color: #c53030;"></i>' : 
+            '<i class="fas fa-circle" style="color: #3182ce;"></i>';
+          
+          gameStatus.innerHTML = `
+            ${winnerIcon}
+            <span>Player ${gameBoard[a]} wins!</span>
+          `;
+
+          // Update score
+          scores[gameBoard[a]]++;
+          localStorage.setItem(`tttScore${gameBoard[a]}`, scores[gameBoard[a]]);
+          updateScoreDisplay();
+
+          // Show notification
+          notyf.success(`Player ${gameBoard[a]} wins the game!`);
+
+          // Disable all cells
+          cells.forEach(cell => cell.disabled = true);
+          
+          return true;
+        }
+      }
+      return false;
+    }
+
+    // Update game status
+    function updateGameStatus() {
+      if (gameActive) {
+        const playerIcon = currentPlayer === 'X' ? 
+          '<i class="fas fa-times" style="color: #c53030;"></i>' : 
+          '<i class="fas fa-circle" style="color: #3182ce;"></i>';
+        
+        gameStatus.innerHTML = `
+          ${playerIcon}
+          <span>Player ${currentPlayer}'s turn</span>
+        `;
+      }
+    }
+
+    // Update score display
+    function updateScoreDisplay() {
+      scoreElements.X.textContent = scores.X;
+      scoreElements.O.textContent = scores.O;
+      scoreElements.draw.textContent = scores.draw;
+    }
+
+    // Restart game
+    function restartGame() {
+      gameBoard = Array(9).fill('');
+      currentPlayer = 'X';
+      gameActive = true;
+      
+      cells.forEach(cell => {
+        cell.textContent = '';
+        cell.disabled = false;
+        cell.classList.remove('x-mark', 'o-mark', 'winner-cell');
+      });
+      
+      updateGameStatus();
+    }
+
+    // Reset score
+    function resetScore() {
+      scores = { X: 0, O: 0, draw: 0 };
+      localStorage.removeItem('tttScoreX');
+      localStorage.removeItem('tttScoreO');
+      localStorage.removeItem('tttScoreDraw');
+      updateScoreDisplay();
+      restartGame();
+      notyf.open({ type: 'info', message: 'Scoreboard has been reset!' });
+    }
+
+    // Initialize the game
+    initGame();
   </script>
 </body>
 </html>
