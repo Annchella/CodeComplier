@@ -1,11 +1,9 @@
-
 <!DOCTYPE html>
 <html>
 <head>
   <title>CodeRunner - Online Compiler</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-  <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   <style>
     * {
@@ -179,6 +177,23 @@
     #editor {
       height: 100%;
       width: 100%;
+      border: none;
+      outline: none;
+    }
+
+    /* Simple textarea fallback */
+    .simple-editor {
+      width: 100%;
+      height: 100%;
+      background: var(--bg-primary);
+      border: none;
+      color: var(--text-primary);
+      padding: 1rem;
+      font-family: 'Consolas', 'Monaco', monospace;
+      font-size: 14px;
+      line-height: 1.4;
+      resize: none;
+      outline: none;
     }
 
     /* Right Panel Tabs */
@@ -476,16 +491,9 @@
   </div>
 
   <script>
-    // Monaco Editor Setup
-    require.config({ paths: { 'vs': 'https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs' }});
-    window.MonacoEnvironment = { getWorkerUrl: () => proxy };
-    let proxy = URL.createObjectURL(new Blob([`
-      self.MonacoEnvironment = {baseUrl: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/'};
-      importScripts('https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/base/worker/workerMain.js');
-    `], { type: 'text/javascript' }));
-
     let editor;
     let currentTheme = 'vs-dark';
+    let monacoLoaded = false;
 
     // Language configurations
     const languages = {
@@ -507,37 +515,133 @@
       }
     };
 
-    // Initialize Monaco Editor
-    require(["vs/editor/editor.main"], function () {
-      editor = monaco.editor.create(document.getElementById('editor'), {
-        value: languages['71'].template,
-        language: 'python',
-        theme: currentTheme,
-        automaticLayout: true,
-        fontSize: 14,
-        lineHeight: 20,
-        minimap: { enabled: false },
-        scrollBeyondLastLine: false,
-        wordWrap: 'on',
-        lineNumbers: 'on',
-        renderLineHighlight: 'gutter',
-        selectOnLineNumbers: true,
-        matchBrackets: 'always',
-        folding: true,
-        foldingHighlight: false,
-        renderIndentGuides: true,
-        occurrencesHighlight: false,
-        overviewRulerBorder: false,
-        hideCursorInOverviewRuler: true
-      });
-    });
+    // Create fallback textarea editor
+    function createFallbackEditor() {
+      const editorContainer = document.getElementById('editor');
+      editorContainer.innerHTML = `
+        <textarea class="simple-editor" id="simpleEditor" placeholder="Write your code here...">${languages['71'].template}</textarea>
+      `;
+    }
+
+    // Initialize Monaco Editor with proper error handling
+    function initializeMonaco() {
+      // Clear any existing editor
+      const editorContainer = document.getElementById('editor');
+      editorContainer.innerHTML = '';
+
+      // Load Monaco Editor
+      const script = document.createElement('script');
+      script.src = 'https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.js';
+      script.onload = function() {
+        try {
+          // Configure Monaco
+          require.config({ 
+            paths: { 'vs': 'https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs' },
+            'vs/nls': { availableLanguages: { '*': 'en' } }
+          });
+
+          // Set up worker environment
+          window.MonacoEnvironment = {
+            getWorkerUrl: function (moduleId, label) {
+              return 'data:text/javascript;charset=utf-8,' + encodeURIComponent(`
+                self.MonacoEnvironment = {
+                  baseUrl: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/'
+                };
+                importScripts('https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/base/worker/workerMain.js');
+              `);
+            }
+          };
+
+          require(['vs/editor/editor.main'], function () {
+            try {
+              editor = monaco.editor.create(document.getElementById('editor'), {
+                value: languages['71'].template,
+                language: 'python',
+                theme: currentTheme,
+                automaticLayout: true,
+                fontSize: 14,
+                lineHeight: 20,
+                minimap: { enabled: false },
+                scrollBeyondLastLine: false,
+                wordWrap: 'on',
+                lineNumbers: 'on',
+                renderLineHighlight: 'gutter',
+                selectOnLineNumbers: true,
+                matchBrackets: 'always',
+                folding: true,
+                foldingHighlight: false,
+                renderIndentGuides: true,
+                occurrencesHighlight: false,
+                overviewRulerBorder: false,
+                hideCursorInOverviewRuler: true
+              });
+              monacoLoaded = true;
+              console.log('Monaco Editor loaded successfully');
+            } catch (editorError) {
+              console.error('Error creating Monaco editor:', editorError);
+              createFallbackEditor();
+            }
+          });
+        } catch (requireError) {
+          console.error('Error loading Monaco modules:', requireError);
+          createFallbackEditor();
+        }
+      };
+
+      script.onerror = function() {
+        console.error('Failed to load Monaco Editor script');
+        createFallbackEditor();
+      };
+
+      document.head.appendChild(script);
+    }
+
+    // Get editor value
+    function getEditorValue() {
+      if (monacoLoaded && editor) {
+        return editor.getValue();
+      } else {
+        const simpleEditor = document.getElementById('simpleEditor');
+        return simpleEditor ? simpleEditor.value : '';
+      }
+    }
+
+    // Set editor value
+    function setEditorValue(value) {
+      if (monacoLoaded && editor) {
+        editor.setValue(value);
+      } else {
+        const simpleEditor = document.getElementById('simpleEditor');
+        if (simpleEditor) {
+          simpleEditor.value = value;
+        }
+      }
+    }
+
+    // Set editor language
+    function setEditorLanguage(language) {
+      if (monacoLoaded && editor && monaco) {
+        try {
+          monaco.editor.setModelLanguage(editor.getModel(), language);
+        } catch (error) {
+          console.warn('Could not set language:', error);
+        }
+      }
+    }
+
+    // Initialize editor
+    initializeMonaco();
 
     // Theme Toggle
     document.getElementById('themeToggle').addEventListener('click', function() {
       document.body.classList.toggle('light-mode');
       const isLight = document.body.classList.contains('light-mode');
       currentTheme = isLight ? 'vs' : 'vs-dark';
-      monaco.editor.setTheme(currentTheme);
+      
+      if (monacoLoaded && editor && monaco) {
+        monaco.editor.setTheme(currentTheme);
+      }
+      
       this.innerHTML = isLight ? '<i class="fas fa-sun"></i>' : '<i class="fas fa-moon"></i>';
     });
 
@@ -545,8 +649,8 @@
     document.getElementById('languageSelect').addEventListener('change', function() {
       const langId = this.value;
       const config = languages[langId];
-      monaco.editor.setModelLanguage(editor.getModel(), config.name);
-      editor.setValue(config.template);
+      setEditorLanguage(config.name);
+      setEditorValue(config.template);
     });
 
     // Tab Switching
@@ -568,7 +672,7 @@
 
     // Run Code
     document.getElementById('runButton').addEventListener('click', function() {
-      const code = editor.getValue().trim();
+      const code = getEditorValue().trim();
       if (!code) {
         showToast('Please write some code first!', 'warning');
         return;
@@ -587,38 +691,61 @@
       
       showOutput({ status: 'running', output: 'Executing your code...' });
 
-      // Simulate API call (replace with your actual endpoint)
+      // Simulate different outputs based on language and code
       setTimeout(() => {
-        const mockResult = {
-          status: 'Accepted',
-          output: 'Hello, World!\n\nExecution completed successfully.',
-          time: '0.23',
-          memory: '8420'
-        };
+        let mockResult;
+        const codeLines = code.split('\n').filter(line => line.trim());
+        
+        if (language === '71') { // Python
+          if (code.includes('print')) {
+            const printMatches = code.match(/print\([^)]*["']([^"']+)["'][^)]*\)/g);
+            let output = '';
+            if (printMatches) {
+              printMatches.forEach(match => {
+                const content = match.match(/["']([^"']+)["']/);
+                if (content) output += content[1] + '\n';
+              });
+            }
+            mockResult = {
+              status: 'Accepted',
+              output: output || 'Hello, World!\n',
+              time: '0.12',
+              memory: '3240'
+            };
+          } else {
+            mockResult = {
+              status: 'Accepted',
+              output: 'Program executed successfully (no output)\n',
+              time: '0.08',
+              memory: '2180'
+            };
+          }
+        } else if (language === '54') { // C++
+          mockResult = {
+            status: 'Accepted',
+            output: 'Hello, World!\n',
+            time: '0.05',
+            memory: '1024'
+          };
+        } else if (language === '62') { // Java
+          mockResult = {
+            status: 'Accepted',
+            output: 'Hello, World!\n',
+            time: '0.34',
+            memory: '12480'
+          };
+        } else { // JavaScript
+          mockResult = {
+            status: 'Accepted',
+            output: 'Hello, World!\n',
+            time: '0.18',
+            memory: '5620'
+          };
+        }
         
         showOutput(mockResult);
         resetRunButton();
-      }, 2000);
-
-      /* Uncomment for actual API integration:
-      fetch('Run.php', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code, input, language })
-      })
-      .then(response => response.json())
-      .then(data => {
-        showOutput(data);
-        resetRunButton();
-      })
-      .catch(error => {
-        showOutput({ 
-          status: 'Error', 
-          output: 'Failed to execute code: ' + error.message 
-        });
-        resetRunButton();
-      });
-      */
+      }, Math.random() * 1500 + 1000); // Random delay between 1-2.5 seconds
     });
 
     function resetRunButton() {
@@ -670,6 +797,8 @@
         setTimeout(() => {
           this.innerHTML = '<i class="fas fa-copy"></i>';
         }, 1500);
+      }).catch(() => {
+        showToast('Failed to copy to clipboard', 'error');
       });
     });
 
@@ -680,6 +809,7 @@
       isResizing = true;
       document.addEventListener('mousemove', handleResize);
       document.addEventListener('mouseup', stopResize);
+      e.preventDefault();
     });
 
     function handleResize(e) {
@@ -692,7 +822,7 @@
       
       const percentage = ((e.clientX - containerRect.left) / containerRect.width) * 100;
       
-      if (percentage > 30 && percentage < 70) {
+      if (percentage > 25 && percentage < 75) {
         leftPanel.style.width = percentage + '%';
         rightPanel.style.width = (100 - percentage) + '%';
       }
@@ -723,6 +853,13 @@
       if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
         e.preventDefault();
         document.getElementById('runButton').click();
+      }
+    });
+
+    // Handle window resize
+    window.addEventListener('resize', function() {
+      if (monacoLoaded && editor) {
+        editor.layout();
       }
     });
   </script>

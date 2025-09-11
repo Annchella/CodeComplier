@@ -73,7 +73,7 @@ $username = htmlspecialchars($_SESSION['admin_username']);
                     <i class="fas fa-graduation-cap"></i>
                     <h5 class="card-title">Manage Courses</h5>
                     <p class="card-text">Add, edit or delete premium/free courses.</p>
-                    <a href="add_course.php" class="btn btn-primary">Go</a>
+                    <a href="manges_courses.php" class="btn btn-primary">Go</a>
                 </div>
             </div>
             <div class="col-md-4" data-aos="fade-up" data-aos-delay="200">

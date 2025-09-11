@@ -522,12 +522,7 @@ if (session_status() === PHP_SESSION_NONE) session_start();
                     <span>AI Assistant</span>
                     <span class="menu-badge warning">Beta</span>
                 </a>
-                <?php if (isset($_SESSION['user']) && $_SESSION['user']['role'] === 'admin'): ?>
-                    <a href="/codecomplier/admin/admin_login.php" class="menu-item">
-                        <i class="fas fa-shield-alt"></i>
-                        <span>Admin Panel</span>
-                    </a>
-                <?php endif; ?>
+                
             </div>
 
             <div class="menu-section">
