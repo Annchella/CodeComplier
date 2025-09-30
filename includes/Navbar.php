@@ -500,6 +500,10 @@ if (session_status() === PHP_SESSION_NONE) session_start();
                     <i class="fas fa-graduation-cap"></i>
                     <span>Courses</span>
                 </a>
+                <a href="/codecomplier/pages/my_courses.php" class="menu-item">
+                    <i class="fas fa-graduation-cap"></i>
+                    <span> My Courses</span>
+                </a>
                 <a href="/codecomplier/pages/challenges.php" class="menu-item">
                     <i class="fas fa-trophy"></i>
                     <span>Challenges</span>
@@ -517,7 +521,7 @@ if (session_status() === PHP_SESSION_NONE) session_start();
 
             <div class="menu-section">
                 <div class="menu-section-title">Tools</div>
-                <a href="/codecomplier/ai.html" class="menu-item">
+                <a href="/codecomplier/ai.php" class="menu-item">
                     <i class="fas fa-robot"></i>
                     <span>AI Assistant</span>
                     <span class="menu-badge warning">Beta</span>
@@ -527,11 +531,11 @@ if (session_status() === PHP_SESSION_NONE) session_start();
 
             <div class="menu-section">
                 <div class="menu-section-title">Support</div>
-                <a href="#" class="menu-item">
+                <a href="/codecomplier/pages/help_center.php" class="menu-item">
                     <i class="fas fa-question-circle"></i>
                     <span>Help Center</span>
                 </a>
-                <a href="#" class="menu-item">
+                <a href="/codecomplier/pages/contact_us.php" class="menu-item">
                     <i class="fas fa-envelope"></i>
                     <span>Contact</span>
                 </a>

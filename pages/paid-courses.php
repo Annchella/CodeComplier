@@ -1,211 +1,368 @@
-<!-- ===========================
-     FILE 2: courses.html (User Side)
-     Shows only courses where status === 'active' (case-insensitive)
-     =========================== -->
+<?php
+// Use __DIR__ to build a reliable path to the shared includes folder
+require_once __DIR__ . '/../includes/Db.php';
+ include_once "../includes/Navbar.php";
+
+// ✅ Get active courses only
+$stmt = $pdo->query("SELECT * FROM courses WHERE status='active' ORDER BY created_at DESC");
+$courses = $stmt->fetchAll();
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Courses – LearnHub</title>
-  <!-- Bootstrap 5 -->
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LearnHub - Available Courses</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-  <!-- Font Awesome -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
-  <!-- Animate.css -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css"/>
-  <!-- AOS (Animate On Scroll) -->
-  <link href="https://unpkg.com/aos@2.3.1/dist/aos.css" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <style>
+    :root {
+      --primary: #4361ee;
+      --secondary: #6c757d;
+      --success: #06d6a0;
+      --light-bg: #f8f9fa;
+      --dark-text: #212529;
+      --card-shadow: 0 10px 20px rgba(0, 0, 0, 0.08);
+      --card-hover-shadow: 0 15px 30px rgba(0, 0, 0, 0.15);
+    }
+    
     body {
-      background: linear-gradient(120deg, #f6d365 0%, #fda085 100%);
-      min-height: 100vh;
-      font-family: 'Segoe UI', 'Roboto', Arial, sans-serif;
+      font-family: 'Poppins', sans-serif;
+      background-color: var(--light-bg);
+      color: var(--dark-text);
+      padding-bottom: 2rem;
     }
-    .glass-card {
-      background: rgba(255,255,255,0.85);
-      border-radius: 1.2rem;
-      box-shadow: 0 8px 32px rgba(0,0,0,0.12);
-      backdrop-filter: blur(6px);
-      transition: transform 0.18s, box-shadow 0.18s;
+    
+    .navbar {
+      background: linear-gradient(120deg, var(--primary), #3a56d4);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+    
+    .hero-section {
+      background: linear-gradient(135deg, #667eea, #764ba2), url('https://i.pinimg.com/736x/a9/a8/53/a9a8533cd3f519ab8928ef5696f16f9a.jpg');
+      background-position: center;
+      color: white;
+      border-radius: 0 0 20px 20px;
+      margin-bottom: 2rem;
+      padding: 3rem 1rem;
+      margin-top:70px;
+    }
+    
+    .course-card {
+      transition: all 0.3s ease;
+      border: none;
+      border-radius: 12px;
       overflow: hidden;
-      border: 1px solid rgba(255,255,255,0.25);
+      height: 100%;
     }
-    .glass-card:hover {
-      transform: translateY(-6px) scale(1.03);
-      box-shadow: 0 16px 40px rgba(0,0,0,0.18);
+    
+    .course-card:hover {
+      transform: translateY(-8px);
+      box-shadow: var(--card-hover-shadow);
     }
+    
     .course-img {
-      width: 100%;
       height: 200px;
       object-fit: cover;
-      background: #f3f4f6;
-      border-top-left-radius: 1.2rem;
-      border-top-right-radius: 1.2rem;
+      transition: transform 0.5s ease;
     }
-    .pill {
-      display: inline-block;
-      padding: 0.3em 0.9em;
-      border-radius: 1em;
-      font-size: 0.85em;
-      font-weight: 500;
-      background: #e0e7ff;
-      color: #4338ca;
-      margin-left: 0.5rem;
+    
+    .course-card:hover .course-img {
+      transform: scale(1.05);
     }
-    .enroll-btn {
-      border-radius: 2em;
-      font-weight: 500;
-      padding: 0.5em 1.5em;
-      font-size: 1em;
-      background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
-      color: #fff;
-      border: none;
-      transition: background 0.2s, box-shadow 0.2s;
-      box-shadow: 0 2px 8px rgba(102,126,234,0.08);
+    
+    .card-body {
+      display: flex;
+      flex-direction: column;
     }
-    .enroll-btn:hover {
-      background: linear-gradient(90deg, #ff6b35 0%, #f7931e 100%);
-      color: #fff;
-      box-shadow: 0 4px 16px rgba(255,107,53,0.13);
+    
+    .difficulty-badge {
+      font-size: 0.75rem;
+      padding: 0.35em 0.65em;
+      border-radius: 50px;
     }
-    .card-title {
-      font-size: 1.25rem;
+    
+    .beginner-badge {
+      background-color: #06d6a0;
+      color: white;
+    }
+    
+    .intermediate-badge {
+      background-color: #ffd166;
+      color: #000;
+    }
+    
+    .advanced-badge {
+      background-color: #ef476f;
+      color: white;
+    }
+    
+    .price-tag {
       font-weight: 700;
-      color: #2d3748;
+      font-size: 1.25rem;
+      color: var(--primary);
     }
-    .card-desc {
-      color: #6b7280;
-      min-height: 48px;
+    
+    .search-container {
+      max-width: 500px;
+      margin: 0 auto 2rem;
+    }
+    
+    .search-box {
+      border-radius: 50px;
+      padding: 0.75rem 1.5rem;
+      border: 2px solid #e9ecef;
+      transition: all 0.3s;
+    }
+    
+    .search-box:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 0.25rem rgba(67, 97, 238, 0.25);
+    }
+    
+    .category-filter {
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-bottom: 2rem;
+    }
+    
+    .category-btn {
+      border-radius: 50px;
+      padding: 0.5rem 1.25rem;
+      font-weight: 500;
+      transition: all 0.3s;
+      border: 2px solid transparent;
+    }
+    
+    .category-btn:hover, .category-btn.active {
+      background-color: var(--primary);
+      color: white;
+      border-color: var(--primary);
+    }
+    
+    .empty-state {
+      text-align: center;
+      padding: 3rem 1rem;
+    }
+    
+    .empty-state i {
+      font-size: 4rem;
+      color: #dee2e6;
       margin-bottom: 1rem;
     }
-    .card-footer {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-top: 1.2rem;
+    
+    .footer {
+      background-color: white;
+      padding: 1.5rem 0;
+      margin-top: 3rem;
+      border-top: 1px solid #e9ecef;
     }
-    .price {
-      color: #764ba2;
-      font-weight: bold;
-      font-size: 1.15rem;
+    
+    .rating {
+      color: #ffc107;
+      margin-bottom: 0.5rem;
     }
-    .admin-btn {
-      border-radius: 2em;
-      font-weight: 500;
-      background: #667eea;
-      color: #fff;
-      padding: 0.5em 1.2em;
+    
+    .enroll-btn {
+      background: linear-gradient(to right, var(--primary), #5e72e4);
       border: none;
-      transition: background 0.2s;
-    }
-    .admin-btn:hover {
-      background: #764ba2;
-      color: #fff;
-    }
-    .refresh-btn {
-      border-radius: 2em;
+      border-radius: 50px;
+      padding: 0.5rem 1.5rem;
       font-weight: 500;
-      background: #f3f4f6;
-      color: #764ba2;
-      padding: 0.5em 1.2em;
-      border: none;
-      transition: background 0.2s;
+      transition: all 0.3s;
     }
-    .refresh-btn:hover {
-      background: #ffe29f;
-      color: #ff6b35;
+    
+    .enroll-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 5px 15px rgba(67, 97, 238, 0.4);
     }
-    .empty-state {
-      color: #888;
-      padding: 4rem 0;
+    
+    @media (max-width: 768px) {
+      .hero-section {
+        padding: 2rem 1rem;
+      }
+      
+      .hero-title {
+        font-size: 2rem;
+      }
     }
   </style>
 </head>
 <body>
-  <div class="container py-5">
-    <div class="d-flex align-items-center justify-content-between mb-4">
-      <h1 class="fw-bold mb-0 animate__animated animate__fadeInDown">
-        <i class="fas fa-graduation-cap text-primary"></i> Available Courses
-      </h1>
-      <div class="d-flex align-items-center gap-2">
-        <button id="refreshBtn" class="refresh-btn me-2" title="Refresh">
-          <i class="fas fa-sync-alt"></i>
-        </button>
-        
+  <!-- <?php include_once "../includes/Navbar.php"; ?> -->
+
+  
+  <!-- Hero Section -->
+  <section class="hero-section">
+    <div class="container text-center">
+      <h1 class="hero-title fw-bold mb-3">Expand Your Knowledge</h1>
+      <p class="lead mb-4">Discover top-quality courses taught by industry experts and advance your career</p>
+      <div class="search-container">
+        <div class="input-group">
+          <input type="text" class="form-control search-box" placeholder="Search for courses...">
+          <button class="btn btn-light" type="button">
+            <i class="fas fa-search"></i>
+          </button>
+        </div>
       </div>
     </div>
-    <div id="coursesGrid" class="row g-4"></div>
-    <div id="emptyState" class="empty-state text-center d-none animate__animated animate__fadeIn">
-      <i class="fas fa-box-open fa-2x mb-2"></i>
-      <div>No active courses available yet.</div>
+  </section>
+
+  <div class="container">
+    <!-- Category Filters -->
+    <div class="category-filter">
+      <button class="btn category-btn active">All Courses</button>
+      <button class="btn category-btn">Web Development</button>
+      <button class="btn category-btn">Data Science</button>
+      <button class="btn category-btn">Design</button>
+      <button class="btn category-btn">Business</button>
     </div>
-  </div>
 
-  <!-- Bootstrap JS -->
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-  <!-- AOS -->
-  <script src="https://unpkg.com/aos@2.3.1/dist/aos.js"></script>
-  <script>
-    AOS.init();
-    function loadCourses() {
-      try {
-        const raw = localStorage.getItem('courses');
-        return raw ? JSON.parse(raw) : [];
-      } catch (e) {
-        console.error('Failed to parse courses from localStorage', e);
-        return [];
-      }
-    }
+    <!-- Courses Grid -->
+    <div class="row g-4">
+      <?php if (!$courses): ?>
+        <div class="col-12">
+          <div class="empty-state">
+            <i class="fas fa-book-open"></i>
+            <h3>No courses available at the moment</h3>
+            <p class="text-muted">Check back later for new courses</p>
+          </div>
+        </div>
+      <?php endif; ?>
 
-    function renderCourses() {
-      const grid = document.getElementById('coursesGrid');
-      const empty = document.getElementById('emptyState');
-      grid.innerHTML = '';
-
-      const active = loadCourses().filter(c => (c.status || '').toLowerCase() === 'active');
-      if (!active.length) {
-        empty.classList.remove('d-none');
-        return;
-      }
-      empty.classList.add('d-none');
-
-      active.forEach(course => {
-        const col = document.createElement('div');
-        col.className = 'col-md-6 col-lg-4';
-        col.setAttribute('data-aos', 'zoom-in');
-        col.innerHTML = `
-          <div class="glass-card h-100 d-flex flex-column animate__animated animate__fadeInUp">
-            <img src="${course.image || 'https://placehold.co/400x200?text=No+Image'}" alt="${course.title}" class="course-img" onerror="this.src='https://placehold.co/400x200?text=No+Image'"/>
-            <div class="p-4 d-flex flex-column flex-grow-1">
-              <div class="d-flex align-items-center justify-content-between mb-2">
-                <span class="card-title">${course.title}</span>
-                <span class="pill">${course.difficulty}</span>
+      <?php foreach ($courses as $course): 
+        // Determine badge class based on difficulty
+        $difficultyClass = 'beginner-badge';
+        if (stripos($course['difficulty'] ?? '', 'intermediate') !== false) {
+          $difficultyClass = 'intermediate-badge';
+        } elseif (stripos($course['difficulty'] ?? '', 'advanced') !== false) {
+          $difficultyClass = 'advanced-badge';
+        }
+        
+        // Generate random rating for demo purposes
+        $rating = number_format(rand(35, 50) / 10, 1);
+        $reviewCount = rand(10, 200);
+      ?>
+        <div class="col-md-6 col-lg-4">
+          <div class="card course-card shadow-sm">
+            <div class="position-relative">
+              <img src="<?= htmlspecialchars($course['image'] ?: 'https://placehold.co/400x200?text=No+Image') ?>" 
+                   class="course-img card-img-top" 
+                   alt="<?= htmlspecialchars($course['title']) ?>" 
+                   onerror="this.src='https://placehold.co/400x200?text=No+Image'">
+              <span class="position-absolute top-0 end-0 m-3 difficulty-badge <?= $difficultyClass ?>">
+                <?= htmlspecialchars($course['difficulty'] ?? 'Unknown') ?>
+              </span>
+            </div>
+            <div class="card-body">
+              <div class="rating">
+                <?php
+                $fullStars = floor($rating);
+                $hasHalfStar = ($rating - $fullStars) >= 0.5;
+                
+                for ($i = 0; $i < $fullStars; $i++) {
+                  echo '<i class="fas fa-star"></i> ';
+                }
+                
+                if ($hasHalfStar) {
+                  echo '<i class="fas fa-star-half-alt"></i> ';
+                  $fullStars++; // Count half star as one for empty stars calculation
+                }
+                
+                for ($i = 0; $i < (5 - $fullStars); $i++) {
+                  echo '<i class="far fa-star"></i> ';
+                }
+                ?>
+                <span class="ms-1 small">(<?= $rating ?>)</span>
               </div>
-              <div class="card-desc mb-2">${course.description}</div>
-              <div class="d-flex align-items-center justify-content-between text-secondary mb-2" style="font-size:0.97em;">
-                <span title="Duration"><i class="far fa-clock"></i> ${Number(course.duration)} hrs</span>
-                <span title="Students"><i class="fas fa-users"></i> ${Number(course.students || 0).toLocaleString()} students</span>
-                <span title="Rating"><i class="fas fa-star text-warning"></i> ${(Number(course.rating || 0)).toFixed(1)}</span>
+              
+              <h5 class="card-title"><?= htmlspecialchars($course['title']) ?></h5>
+              <p class="card-text text-muted flex-grow-1"><?= htmlspecialchars($course['description']) ?></p>
+              
+              <div class="d-flex justify-content-between align-items-center mt-3">
+                <div>
+                  <i class="far fa-clock text-muted me-1"></i>
+                  <span class="text-muted small"><?= htmlspecialchars($course['duration_hours'] ?? $course['duration'] ?? 'N/A') ?> hrs</span>
+                  <span class="mx-2 text-muted">•</span>
+                  <i class="fas fa-user-graduate text-muted me-1"></i>
+                  <span class="text-muted small"><?= $reviewCount ?> reviews</span>
+                </div>
               </div>
-              <div class="card-footer mt-auto">
-                <span class="price">₹${Number(course.price).toLocaleString()}</span>
-                <a href="courses_details.php?id=${course.id}" class="enroll-btn">
-                  <i class="fas fa-arrow-right"></i> Enroll Now
+              
+              <div class="mt-3 d-flex justify-content-between align-items-center">
+                <span class="price-tag">₹<?= number_format($course['price'], 2) ?></span>
+                <a href="course_details.php?id=<?= $course['id'] ?>" class="btn enroll-btn">
+                  Enroll <i class="fas fa-arrow-right ms-1"></i>
                 </a>
               </div>
             </div>
           </div>
-        `;
-        grid.appendChild(col);
-      });
-      AOS.refresh();
-    }
+        </div>
+      <?php endforeach; ?>
+    </div>
+  </div>
 
-    document.getElementById('refreshBtn').addEventListener('click', renderCourses);
-    renderCourses();
+  <!-- Footer -->
+  <footer class="footer mt-5">
+    <div class="container">
+      <div class="row">
+        <div class="col-md-6 text-center text-md-start">
+          <p class="mb-0">&copy; 2023 LearnHub. All rights reserved.</p>
+        </div>
+        <div class="col-md-6 text-center text-md-end">
+          <div class="social-links">
+            <a href="#" class="text-decoration-none text-secondary me-3"><i class="fab fa-facebook-f"></i></a>
+            <a href="#" class="text-decoration-none text-secondary me-3"><i class="fab fa-twitter"></i></a>
+            <a href="#" class="text-decoration-none text-secondary me-3"><i class="fab fa-instagram"></i></a>
+            <a href="#" class="text-decoration-none text-secondary"><i class="fab fa-linkedin-in"></i></a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    // Simple filter functionality for demonstration
+    document.addEventListener('DOMContentLoaded', function() {
+      const categoryButtons = document.querySelectorAll('.category-btn');
+      const courseCards = document.querySelectorAll('.course-card');
+      
+      categoryButtons.forEach(button => {
+        button.addEventListener('click', function() {
+          // Remove active class from all buttons
+          categoryButtons.forEach(btn => btn.classList.remove('active'));
+          
+          // Add active class to clicked button
+          this.classList.add('active');
+          
+          // In a real implementation, you would filter courses here
+          // For this demo, we're just showing a toast notification
+          const category = this.textContent;
+          alert(`Filtering by: ${category}. This would filter courses in a real implementation.`);
+        });
+      });
+      
+      // Search functionality
+      const searchBox = document.querySelector('.search-box');
+      searchBox.addEventListener('keyup', function() {
+        const searchTerm = this.value.toLowerCase();
+        
+        courseCards.forEach(card => {
+          const title = card.querySelector('.card-title').textContent.toLowerCase();
+          const description = card.querySelector('.card-text').textContent.toLowerCase();
+          
+          if (title.includes(searchTerm) || description.includes(searchTerm)) {
+            card.style.display = 'block';
+          } else {
+            card.style.display = 'none';
+          }
+        });
+      });
+    });
   </script>
 </body>
 </html>
-
-

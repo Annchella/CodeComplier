@@ -1,237 +1,568 @@
 <?php
-declare(strict_types=1);
+session_start();
+require_once '../includes/db.php';
 
-// 1) Load DB connector (adjust the path/filename to your project)
-$path = __DIR__ . '/../includes/Db.php'; // e.g., ../includes/connect.php or ../includes/Db.php
-if (!is_file($path)) {
-  error_log('Missing DB include at ' . $path);
-  http_response_code(500);
-  echo '<p>Server misconfiguration: DB connector missing.</p>';
-  exit;
+// ✅ Ensure course ID
+if (!isset($_GET['id']) || empty($_GET['id'])) {
+    die("⚠️ Invalid course ID.");
 }
-require_once $path;
+$course_id = (int) $_GET['id'];
 
-// 2) Ensure we have a mysqli connection in $conn (support both styles)
-if (!isset($conn) || !($conn instanceof mysqli)) {
-  if (class_exists('Db') && method_exists('Db', 'getConnection')) {
-    $conn = Db::getConnection(); // Db.php should expose this if it doesn't define $conn
-  }
-}
-if (!isset($conn) || !($conn instanceof mysqli)) {
-  error_log('DB connector did not provide $conn');
-  http_response_code(500);
-  echo '<p>Server misconfiguration: no DB connection.</p>';
-  exit;
+// ✅ Fetch course
+$stmt = $pdo->prepare("SELECT * FROM courses WHERE id = ?");
+$stmt->execute([$course_id]);
+$course = $stmt->fetch();
+if (!$course) {
+    die("⚠️ Course not found.");
 }
 
-// 3) Payment config (Stripe optional)
-$USE_STRIPE   = true;               // set false if not using Stripe
-$STRIPE_SECRET= getenv('STRIPE_SECRET') ?: ''; // put your Stripe secret in environment, not in code
-$CURRENCY     = 'INR';              // change if needed
+// ✅ Check login
+$is_logged_in = isset($_SESSION['user']['id']);
+$user_id = $is_logged_in ? $_SESSION['user']['id'] : null;
 
-// Helpers
-function h(string $s): string { return htmlspecialchars($s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); }
-function json_response(array $data, int $status = 200): never {
-  http_response_code($status);
-  header('Content-Type: application/json');
-  echo json_encode($data);
-  exit;
+// ✅ Check if purchased
+$has_purchased = false;
+if ($is_logged_in) {
+    $check = $pdo->prepare("SELECT 1 FROM purchases WHERE user_id = ? AND course_id = ?");
+    $check->execute([$user_id, $course_id]);
+    $has_purchased = $check->fetchColumn() ? true : false;
 }
-
-// 4) Parse id
-$id = isset($_GET['id']) ? trim((string)$_GET['id']) : '';
-if ($id == '') {
-  http_response_code(400);
-  echo '<!doctype html><p>Bad request: missing course id.</p>';
-  exit;
-}
-
-// 5) Handle AJAX payment session creation
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-  $payload = file_get_contents('php://input');
-  $req = json_decode($payload, true);
-  if (json_last_error() !== JSON_ERROR_NONE || !is_array($req)) {
-    json_response(['error' => 'Invalid JSON'], 400);
-  }
-  $action = $req['action'] ?? '';
-  if ($action === 'create_stripe_session') {
-    if (!$USE_STRIPE || $STRIPE_SECRET === '') {
-      json_response(['error' => 'Stripe not configured'], 400);
-    }
-    // Fetch course again authoritatively (server-side)
-    $stmt = $conn->prepare("SELECT id, title, price, status FROM courses WHERE id = ? LIMIT 1");
-    if (!$stmt) json_response(['error' => 'DB prepare failed'], 500);
-    $stmt->bind_param("s", $id);
-    $stmt->execute();
-    $res = $stmt->get_result();
-    $course = $res ? $res->fetch_assoc() : null;
-    $stmt->close();
-
-    if (!$course || strtolower((string)$course['status']) !== 'active') {
-      json_response(['error' => 'Course unavailable'], 404);
-    }
-
-    $title = (string)$course['title'];
-    $price = (float)$course['price']; // Stripe expects minor units
-
-    // Create Stripe Checkout Session
-    require_once __DIR__ . '/../vendor/autoload.php';
-    \Stripe\Stripe::setApiKey($STRIPE_SECRET);
-    try {
-      $session = \Stripe\Checkout\Session::create([
-        'mode' => 'payment',
-        'line_items' => [[
-          'price_data' => [
-            'currency' => strtolower($CURRENCY),
-            'product_data' => [
-              'name' => $title,
-              'metadata' => ['course_id' => $course['id']],
-            ],
-            'unit_amount' => (int)round($price * 100),
-          ],
-          'quantity' => 1,
-        ]],
-        'metadata' => ['course_id' => $course['id']],
-        'success_url' => sprintf('%s://%s%s?status=success&id=%s&session_id={CHECKOUT_SESSION_ID}',
-          isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http',
-          $_SERVER['HTTP_HOST'],
-          dirname($_SERVER['REQUEST_URI']) . '/purchase_success.php',
-          rawurlencode($course['id'])
-        ),
-        'cancel_url' => sprintf('%s://%s%s?id=%s',
-          isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http',
-          $_SERVER['HTTP_HOST'],
-          $_SERVER['REQUEST_URI'],
-          rawurlencode($course['id'])
-        ),
-      ]);
-      json_response(['checkout_url' => $session->url], 200);
-    } catch (\Throwable $e) {
-      json_response(['error' => 'Stripe error: '.$e->getMessage()], 500);
-    }
-  } else {
-    json_response(['error' => 'Unknown action'], 400);
-  }
-}
-
-// 6) Fetch the course to render the page (match your column names exactly)
-$stmt = $conn->prepare("
-  SELECT 
-    id, title, description, image, price, category, difficulty, duration_hours, 
-    rating, students_count, instructor, status, features, objectives, requirements
-  FROM courses WHERE id = ? LIMIT 1
-");
-if (!$stmt) {
-  http_response_code(500);
-  echo '<!doctype html><p>Server error.</p>';
-  exit;
-}
-$stmt->bind_param("s", $id);
-$stmt->execute();
-$res = $stmt->get_result();
-$course = $res ? $res->fetch_assoc() : null;
-$stmt->close();
-
-if (!$course || strtolower((string)$course['status']) !== 'active') {
-  http_response_code(404);
-  echo '<!doctype html><p>Course not found or inactive.</p>';
-  exit;
-}
-
-// 7) Prepare fields for display
-$title       = h((string)$course['title']);
-$desc        = h((string)($course['description'] ?? ''));
-$image       = (string)($course['image'] ?? ''); // if your column is image_url, use that name above and here
-$img         = $image !== '' ? $image : 'https://placehold.co/800x400?text=Course';
-$priceVal    = (float)($course['price'] ?? 0.0);
-$category    = h((string)($course['category'] ?? ''));
-$difficulty  = h(ucfirst((string)($course['difficulty'] ?? '')));
-$duration    = (int)($course['duration_hours'] ?? 0);
-$rating      = (float)($course['rating'] ?? 0);
-$students    = (int)($course['students_count'] ?? 0);
-$instructor  = h((string)($course['instructor'] ?? ''));
-$features    = nl2br(h((string)($course['features'] ?? '')));
-$objectives  = nl2br(h((string)($course['objectives'] ?? '')));
-$requirements= nl2br(h((string)($course['requirements'] ?? '')));
-$courseId    = h((string)$course['id']);
-$currencyTxt = h($CURRENCY);
 ?>
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <title><?= $title ?> – Course Details</title>
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><?= htmlspecialchars($course['title']) ?> – Course Details</title>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Crimson+Text:wght@400;600&display=swap" rel="stylesheet">
   <style>
-    body{background:#f7fafc}
-    .hero{background:#fff;border-radius:16px;box-shadow:0 6px 24px rgba(0,0,0,.08);overflow:hidden}
-    .price{color:#6b46c1;font-weight:700;font-size:1.25rem}
-    .muted{color:#6b7280}
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: #fafbfc;
+      color: #2d3748;
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 40px 20px;
+    }
+
+    .course-layout {
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      gap: 60px;
+      align-items: start;
+    }
+
+    /* Course Main Content */
+    .course-main {
+      background: white;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+      border: 1px solid #e2e8f0;
+    }
+
+    .course-image {
+      width: 100%;
+      height: 350px;
+      object-fit: cover;
+      display: block;
+    }
+
+    .course-content {
+      padding: 40px;
+    }
+
+    .course-title {
+      font-family: 'Crimson Text', serif;
+      font-size: 2.5rem;
+      font-weight: 600;
+      color: #1a202c;
+      margin-bottom: 20px;
+      line-height: 1.3;
+    }
+
+    .course-description {
+      font-size: 1.1rem;
+      color: #4a5568;
+      line-height: 1.7;
+      margin-bottom: 30px;
+    }
+
+    .course-features {
+      list-style: none;
+      margin-bottom: 30px;
+    }
+
+    .course-features li {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 8px 0;
+      color: #2d3748;
+    }
+
+    .feature-icon {
+      width: 20px;
+      height: 20px;
+      background: #48bb78;
+      color: white;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      flex-shrink: 0;
+    }
+
+    /* Sidebar */
+    .course-sidebar {
+      position: sticky;
+      top: 40px;
+    }
+
+    .price-card {
+      background: white;
+      border-radius: 12px;
+      padding: 30px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+      border: 1px solid #e2e8f0;
+      margin-bottom: 20px;
+    }
+
+    .price-section {
+      text-align: center;
+      margin-bottom: 25px;
+      padding-bottom: 25px;
+      border-bottom: 1px solid #e2e8f0;
+    }
+
+    .price-label {
+      font-size: 14px;
+      color: #718096;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 8px;
+    }
+
+    .price-value {
+      font-size: 2.5rem;
+      font-weight: 700;
+      color: #2d3748;
+    }
+
+    .status-alert {
+      padding: 16px 20px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    .status-alert.info {
+      background: #ebf8ff;
+      border: 1px solid #bee3f8;
+      color: #2b6cb0;
+    }
+
+    .status-alert.success {
+      background: #f0fff4;
+      border: 1px solid #9ae6b4;
+      color: #276749;
+    }
+
+    .status-alert a {
+      color: inherit;
+      text-decoration: underline;
+      font-weight: 500;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      padding: 14px 24px;
+      border: none;
+      border-radius: 8px;
+      font-size: 15px;
+      font-weight: 600;
+      text-decoration: none;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      width: 100%;
+      margin-bottom: 12px;
+    }
+
+    .btn-primary {
+      background: #4299e1;
+      color: white;
+      border: 1px solid #4299e1;
+    }
+
+    .btn-primary:hover {
+      background: #3182ce;
+      border-color: #3182ce;
+      transform: translateY(-1px);
+    }
+
+    .btn-success {
+      background: #48bb78;
+      color: white;
+      border: 1px solid #48bb78;
+    }
+
+    .btn-success:hover {
+      background: #38a169;
+      border-color: #38a169;
+      transform: translateY(-1px);
+    }
+
+    .btn-outline {
+      background: white;
+      color: #4299e1;
+      border: 1px solid #4299e1;
+    }
+
+    .btn-outline:hover {
+      background: #4299e1;
+      color: white;
+    }
+
+    /* Payment Forms */
+    .payment-form {
+      background: white;
+      border-radius: 8px;
+      padding: 25px;
+      margin-top: 20px;
+      border: 1px solid #e2e8f0;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04);
+    }
+
+    .form-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 20px;
+      font-size: 18px;
+      font-weight: 600;
+      color: #2d3748;
+      padding-bottom: 15px;
+      border-bottom: 1px solid #e2e8f0;
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    .form-label {
+      display: block;
+      font-weight: 500;
+      color: #2d3748;
+      margin-bottom: 6px;
+      font-size: 14px;
+    }
+
+    .form-input {
+      width: 100%;
+      padding: 12px 16px;
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      font-size: 15px;
+      transition: all 0.2s ease;
+      background: #fafbfc;
+    }
+
+    .form-input:focus {
+      outline: none;
+      border-color: #4299e1;
+      background: white;
+      box-shadow: 0 0 0 3px rgba(66, 153, 225, 0.1);
+    }
+
+    .form-input::placeholder {
+      color: #a0aec0;
+    }
+
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 15px;
+    }
+
+    .security-badge {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: #4a5568;
+      margin-top: 15px;
+      padding: 10px 12px;
+      background: #f7fafc;
+      border-radius: 6px;
+      border: 1px solid #e2e8f0;
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    /* Responsive Design */
+    @media (max-width: 768px) {
+      .container {
+        padding: 20px 16px;
+      }
+
+      .course-layout {
+        grid-template-columns: 1fr;
+        gap: 30px;
+      }
+
+      .course-content {
+        padding: 30px 25px;
+      }
+
+      .course-title {
+        font-size: 2rem;
+      }
+
+      .price-card {
+        padding: 25px 20px;
+      }
+
+      .form-row {
+        grid-template-columns: 1fr;
+      }
+
+      .course-sidebar {
+        position: static;
+      }
+    }
+
+    /* Subtle hover effects */
+    .course-main:hover {
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
+    }
+
+    .price-card:hover {
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
+    }
+
+    /* Clean animations */
+    .course-main,
+    .price-card,
+    .payment-form {
+      transition: box-shadow 0.3s ease;
+    }
+
+    .btn:active {
+      transform: translateY(0);
+    }
   </style>
 </head>
-<body class="py-4">
-<div class="container">
-  <a href="courses.php" class="btn btn-link mb-3">&larr; Back to courses</a>
-  <div class="hero row g-0">
-    <div class="col-md-6">
-      <img src="<?= h($img) ?>" alt="<?= $title ?>" class="w-100" style="height:100%;object-fit:cover;min-height:260px" onerror="this.src='https://placehold.co/800x400?text=Course'">
-    </div>
-    <div class="col-md-6 p-4">
-      <h1 class="h3 mb-2"><?= $title ?></h1>
-      <div class="muted mb-3"><?= $desc ?></div>
-      <div class="d-flex flex-wrap gap-3 small muted mb-3">
-        <span>Category: <?= $category ?></span>
-        <span>Difficulty: <?= $difficulty ?></span>
-        <span>Duration: <?= (int)$duration ?> hrs</span>
-        <span>Rating: <?= number_format((float)$rating,1) ?></span>
-        <span>Students: <?= number_format((int)$students) ?></span>
-        <?php if ($instructor !== ''): ?><span>Instructor: <?= $instructor ?></span><?php endif; ?>
+<body>
+  <div class="container">
+    <div class="course-layout">
+      <!-- Main Course Content -->
+      <div class="course-main">
+        <?php if (!empty($course['image'])): ?>
+          <img src="<?= htmlspecialchars($course['image']) ?>" alt="Course Image" class="course-image">
+        <?php endif; ?>
+
+        <div class="course-content">
+          <h1 class="course-title"><?= htmlspecialchars($course['title']) ?></h1>
+          <p class="course-description"><?= nl2br(htmlspecialchars($course['description'])) ?></p>
+
+          <ul class="course-features">
+            <li>
+              <span class="feature-icon"><i class="fas fa-check"></i></span>
+              Lifetime access to all course materials
+            </li>
+            <li>
+              <span class="feature-icon"><i class="fas fa-check"></i></span>
+              Expert instructor support and guidance
+            </li>
+            <li>
+              <span class="feature-icon"><i class="fas fa-check"></i></span>
+              Certificate of completion
+            </li>
+            <li>
+              <span class="feature-icon"><i class="fas fa-check"></i></span>
+              Access on mobile and desktop
+            </li>
+            <li>
+              <span class="feature-icon"><i class="fas fa-check"></i></span>
+              30-day money-back guarantee
+            </li>
+          </ul>
+        </div>
       </div>
-      <div class="mb-3">
-        <div class="fw-semibold">What’s included</div>
-        <div class="small muted"><?= $features ?: '—' ?></div>
+
+      <!-- Sidebar -->
+      <div class="course-sidebar">
+        <div class="price-card">
+          <div class="price-section">
+            <div class="price-label">Course Price</div>
+            <div class="price-value">₹<?= number_format($course['price'], 0) ?></div>
+          </div>
+
+          <?php if (!$is_logged_in): ?>
+            <div class="status-alert info">
+              <i class="fas fa-info-circle"></i>
+              <div>
+                You're viewing as a guest. <a href="../auth/login.php">Sign in</a> to purchase this course.
+              </div>
+            </div>
+          <?php elseif ($has_purchased): ?>
+            <div class="status-alert success">
+              <i class="fas fa-check-circle"></i>
+              <div>
+                <strong>Enrolled successfully!</strong><br>
+                You have full access to this course.
+              </div>
+            </div>
+            <a href="my_courses.php" class="btn btn-success">
+              <i class="fas fa-play"></i> Continue Learning
+            </a>
+          <?php else: ?>
+            <button class="btn btn-primary" onclick="showForm('card')">
+              <i class="fas fa-credit-card"></i> Pay with Card
+            </button>
+            <button class="btn btn-outline" onclick="showForm('upi')">
+              <i class="fas fa-mobile-alt"></i> Pay with UPI
+            </button>
+
+            <!-- Card Payment Form -->
+            <form method="POST" action="purchases.php" class="payment-form hidden" id="cardForm">
+              <div class="form-header">
+                <i class="fas fa-credit-card"></i>
+                <span>Card Payment</span>
+              </div>
+              
+              <input type="hidden" name="course_id" value="<?= $course_id ?>">
+              <input type="hidden" name="payment_method" value="card">
+
+              <div class="form-group">
+                <label class="form-label">Card Number</label>
+                <input type="text" name="card_number" class="form-input" placeholder="1234 5678 9012 3456" maxlength="19" required>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Cardholder Name</label>
+                <input type="text" name="card_name" class="form-input" placeholder="Full name as on card" required>
+              </div>
+
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="form-label">Expiry Date</label>
+                  <input type="text" name="expiry_date" class="form-input" placeholder="MM/YY" maxlength="5" required>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">CVV</label>
+                  <input type="password" name="cvv" class="form-input" placeholder="123" maxlength="4" required>
+                </div>
+              </div>
+
+              <div class="security-badge">
+                <i class="fas fa-shield-alt"></i>
+                <span>Your payment information is secure and encrypted</span>
+              </div>
+
+              <button type="submit" class="btn btn-primary" style="margin-top: 15px;">
+                <i class="fas fa-lock"></i> Complete Payment
+              </button>
+            </form>
+
+            <!-- UPI Payment Form -->
+            <form method="POST" action="purchases.php" class="payment-form hidden" id="upiForm">
+              <div class="form-header">
+                <i class="fas fa-mobile-alt"></i>
+                <span>UPI Payment</span>
+              </div>
+              
+              <input type="hidden" name="course_id" value="<?= $course_id ?>">
+              <input type="hidden" name="payment_method" value="upi">
+
+              <div class="form-group">
+                <label class="form-label">UPI ID</label>
+                <input type="text" name="upi_id" class="form-input" placeholder="yourname@paytm" required>
+              </div>
+
+              <div class="security-badge">
+                <i class="fas fa-shield-alt"></i>
+                <span>Secure and instant UPI payment</span>
+              </div>
+
+              <button type="submit" class="btn btn-success" style="margin-top: 15px;">
+                <i class="fas fa-mobile-alt"></i> Pay with UPI
+              </button>
+            </form>
+          <?php endif; ?>
+        </div>
       </div>
-      <div class="mb-3">
-        <div class="fw-semibold">Objectives</div>
-        <div class="small muted"><?= $objectives ?: '—' ?></div>
-      </div>
-      <div class="mb-3">
-        <div class="fw-semibold">Requirements</div>
-        <div class="small muted"><?= $requirements ?: '—' ?></div>
-      </div>
-      <div class="d-flex justify-content-between align-items-center my-3">
-        <div class="price">Price: <?= $currencyTxt ?> <?= number_format((float)$priceVal, 2) ?></div>
-        <button id="enrollBtn" class="btn btn-primary">Enroll Now</button>
-      </div>
-      <small class="text-secondary">Course ID: <?= $courseId ?></small>
-      <div id="errorBox" class="alert alert-danger d-none mt-3"></div>
     </div>
   </div>
-</div>
 
-<script>
-const enrollBtn = document.getElementById('enrollBtn');
-const errorBox = document.getElementById('errorBox');
-function showError(msg){ errorBox.textContent = msg; errorBox.classList.remove('d-none'); }
+  <script>
+    function showForm(method) {
+      document.getElementById('cardForm').classList.add('hidden');
+      document.getElementById('upiForm').classList.add('hidden');
+      
+      if(method === 'card') {
+        document.getElementById('cardForm').classList.remove('hidden');
+      }
+      if(method === 'upi') {
+        document.getElementById('upiForm').classList.remove('hidden');
+      }
+    }
 
-enrollBtn.addEventListener('click', async (e)=>{
-  e.preventDefault();
-  errorBox.classList.add('d-none');
-  try{
-    const res = await fetch(location.href, {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({action:'create_stripe_session'})
+    document.addEventListener('DOMContentLoaded', function() {
+      // Card number formatting
+      const cardNumberInput = document.querySelector('input[name="card_number"]');
+      if (cardNumberInput) {
+        cardNumberInput.addEventListener('input', function(e) {
+          let value = e.target.value.replace(/\s/g, '').replace(/[^0-9]/gi, '');
+          let formattedValue = value.match(/.{1,4}/g)?.join(' ') || value;
+          if (formattedValue.length <= 19) {
+            e.target.value = formattedValue;
+          }
+        });
+      }
+
+      // Expiry date formatting
+      const expiryInput = document.querySelector('input[name="expiry_date"]');
+      if (expiryInput) {
+        expiryInput.addEventListener('input', function(e) {
+          let value = e.target.value.replace(/\D/g, '');
+          if (value.length >= 2) {
+            value = value.substring(0, 2) + '/' + value.substring(2, 4);
+          }
+          e.target.value = value;
+        });
+      }
+
+      // CVV formatting
+      const cvvInput = document.querySelector('input[name="cvv"]');
+      if (cvvInput) {
+        cvvInput.addEventListener('input', function(e) {
+          e.target.value = e.target.value.replace(/\D/g, '');
+        });
+      }
     });
-    const data = await res.json();
-    if(!res.ok){ throw new Error(data.error || 'Failed to start checkout'); }
-    if(!data.checkout_url){ throw new Error('No checkout URL'); }
-    window.location.assign(data.checkout_url);
-  }catch(err){
-    showError(err.message);
-  }
-});
-</script>
+  </script>
 </body>
 </html>
